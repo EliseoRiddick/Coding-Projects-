@@ -44,15 +44,16 @@ def test_load_csv_naive_and_epoch(tmp_path):
     assert load_csv(e, TZ).index[0] == df.index[0]
 
 
-@pytest.mark.parametrize("hhmm,name", [("03:00", "london_killzone"), ("08:30", "ny_am_killzone"),
-                                       ("21:00", "asia"), ("14:00", "ny_pm_killzone"), ("17:00", "off_session")])
+@pytest.mark.parametrize("hhmm,name", [("03:00", "london"), ("08:30", "ny_premarket"), ("09:45", "ny_morning"),
+                                       ("21:00", "asia"), ("12:00", "lunch"), ("14:00", "ny_afternoon"),
+                                       ("17:00", "off_session")])
 def test_session_of(hhmm, name):
     assert sessions.session_of(pd.Timestamp(f"2025-03-04 {hhmm}", tz=TZ)) == name
 
 
 def test_session_across_dst():
     # US DST starts 2025-03-09; wall-clock sessions must not shift
-    assert sessions.session_of(pd.Timestamp("2025-03-10 08:30", tz=TZ)) == "ny_am_killzone"
+    assert sessions.session_of(pd.Timestamp("2025-03-10 08:30", tz=TZ)) == "ny_premarket"
 
 
 def test_fvg_detection_and_fill():
@@ -77,10 +78,10 @@ def test_period_levels_prev_day():
 def test_build_features_no_lookahead():
     f15 = synth()
     frames = {"15m": f15, "1h": resample_ohlc(f15, "1h")}
-    asof = pd.Timestamp("2025-03-07 09:00", tz=TZ)
+    asof = pd.Timestamp("2025-03-07 08:45", tz=TZ)
     feats = build_features(frames, "TEST", asof)
     assert feats["current_price"] == f15.loc[asof, "close"]
-    assert feats["time"]["day_of_week"] == "Friday" and feats["time"]["current_session"] == "ny_am_killzone"
+    assert feats["time"]["day_of_week"] == "Friday" and feats["time"]["current_session"] == "ny_premarket"
     assert set(feats["timeframes"]) == {"15m", "1h"}
     d = [abs(r["distance"]) for r in feats["key_levels_by_distance"]]
     assert d == sorted(d) and d
@@ -139,3 +140,73 @@ def test_user_content_order_and_econ():
     assert c[0]["type"] == c[1]["type"] == "image" and c[2]["type"] == "text"
     assert "<economic_data>" in c[2]["text"] and "2 chart screenshot" in c[2]["text"]
     assert "economic_data" not in user_content({"x": 1})[0]["text"]
+
+
+def ts(s):
+    return pd.Timestamp(s, tz=TZ)
+
+
+@pytest.mark.parametrize("when,status", [("2025-03-05 10:15", "tradable_window"), ("2025-03-05 12:00", "no_new_trades"),
+                                         ("2025-03-05 08:00", "observe_only"), ("2025-03-05 16:30", "outside_windows"),
+                                         ("2025-03-05 14:00", "tradable_window"), ("2025-03-08 10:15", "closed_or_conditional_only")])
+def test_trading_status_follows_r52_r53(when, status):
+    assert sessions.trading_status(ts(when))["status"] == status
+
+
+def test_macro_silver_bullet_and_830_flags():
+    assert sessions.in_macro(ts("2025-03-05 09:55")) and sessions.in_macro(ts("2025-03-05 10:08"))
+    assert not sessions.in_macro(ts("2025-03-05 10:30")) and not sessions.in_macro(ts("2025-03-05 04:55"))
+    assert "silver_bullet_am" in sessions.active_windows(ts("2025-03-05 10:30"))
+    assert sessions.trading_status(ts("2025-03-05 08:31"))["data_day_830_caution"]
+    assert not sessions.trading_status(ts("2025-03-05 08:40"))["data_day_830_caution"]
+    assert sessions.calendar_caution(ts("2025-08-12")) and sessions.calendar_caution(ts("2025-03-05")) is None
+
+
+def futures_like(weeks=14, seed=3):
+    """15m bars with a 17:00-18:00 daily break and a weekend gap (Sun 18:00 open), with price jumps at reopens."""
+    rng = np.random.default_rng(seed)
+    rows, price = [], 100.0
+    t = pd.Timestamp("2025-01-05 18:00", tz=TZ)  # a Sunday
+    end = t + pd.Timedelta(weeks=weeks)
+    while t < end:
+        if t.weekday() == 4 and t.hour >= 17 or t.weekday() == 5 or (t.weekday() == 6 and t.hour < 18):
+            t += pd.Timedelta(minutes=15); continue
+        if t.hour == 17:
+            t += pd.Timedelta(minutes=15); continue
+        if t.hour == 18 and t.minute == 0:
+            price += rng.normal(0, 2.0)  # reopen gap
+        o = price; price += rng.normal(0, 0.3)
+        rows.append((t, o, max(o, price) + 0.1, min(o, price) - 0.1, price))
+        t += pd.Timedelta(minutes=15)
+    return pd.DataFrame(rows, columns=["time", "open", "high", "low", "close"]).set_index("time")
+
+
+def test_playbook_levels_on_futures_like_data():
+    df = futures_like()
+    asof = ts("2025-04-02 10:30")  # Wednesday, after the opening range completes
+    L, detail = levels.playbook_levels(df[df.index <= asof], asof)
+    today = df[(df.index >= ts("2025-04-02 07:00")) & (df.index < ts("2025-04-02 09:00"))]
+    assert L["premarket_high_0700_0900"] == today["high"].max() and L["premarket_low_0700_0900"] == today["low"].min()
+    orr = df[(df.index >= ts("2025-04-02 09:30")) & (df.index < ts("2025-04-02 10:00"))]
+    assert L["opening_range_high_0930_1000"] == orr["high"].max() and detail["opening_range_complete"]
+    # RTH gap: last bar starting before 16:15 on the prior day -> 09:30 open
+    prev = df[(df.index >= ts("2025-04-01 00:00")) & (df.index < ts("2025-04-01 16:15"))]["close"].iloc[-1]
+    op = df.loc[ts("2025-04-02 09:30"), "open"]
+    if abs(op - prev) >= levels.MIN_GAP:
+        assert L["rth_gap_ce"] == pytest.approx((prev + op) / 2)
+        assert detail["rth_opening_gap"]["type"] == ("premium" if op > prev else "discount")
+    assert detail["ndog_recent"] and detail["nwog_recent"]
+    assert all(r["low"] <= r["ce"] <= r["high"] for r in detail["ndog_recent"] + detail["nwog_recent"])
+    for n in (20, 40, 60):
+        assert L[f"lookback_{n}d_high"] >= L[f"lookback_{n}d_low"]
+    assert L["lookback_60d_high"] >= L["lookback_20d_high"] and L["lookback_60d_low"] <= L["lookback_20d_low"]
+
+
+def test_features_include_playbook_context():
+    df = futures_like()
+    feats = build_features({"15m": df}, "FUT", ts("2025-04-02 10:30"))
+    t = feats["time"]
+    assert t["trading_window"]["status"] == "tradable_window" and "silver_bullet_am" in t["active_windows"]
+    assert t["day_of_week"] == "Wednesday" and "R62" in t["day_guidance"]
+    assert any(r["level"] == "lookback_20d_high" for r in feats["key_levels_by_distance"])
+    assert "playbook_detail" in feats

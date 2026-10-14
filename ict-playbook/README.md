@@ -49,7 +49,7 @@ python -m ict_agent.cli ... --asof "2025-03-12 08:45"
 ```
 Python computes levels (previous day/week/month high-low, opens, swings, equal highs/lows, unfilled FVGs,
 premium/discount), session, day of week and week profile; Claude only reasons over that snapshot using your
-playbook (cached in the system prompt). Output is JSON saved to `ideas/`. Session windows live in
-`agent/ict_agent/sessions.py` - edit them to match your playbook.
+playbook (cached in the system prompt). Output is JSON saved to `ideas/`. Time logic follows playbook Chapter 5 (windows, R52/R53 trading windows, macros, Silver Bullet, opening range, 4:14 pm RTH gap, NDOG/NWOG, 20/40/60-day ranges, day-of-week guidance). Window times live in
+`agent/ict_agent/sessions.py`; edit them if you revise the playbook. NDOG/NWOG need futures data that includes the overnight break and weekend gap; with gap-free data they are simply omitted.
 
 Tests: `python -m pytest agent/tests`. Educational analysis only, not financial advice.

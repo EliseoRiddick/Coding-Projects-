@@ -16,6 +16,8 @@ def build_features(frames: dict[str, pd.DataFrame], symbol: str, asof: pd.Timest
     price = float(base["close"].iloc[-1])
     ref = levels.reference_atr(base)
     lv = levels.period_levels(base, asof)
+    pb_levels, pb_detail = levels.playbook_levels(base, asof)
+    lv.update(pb_levels)
     return {
         "symbol": symbol,
         "current_price": price,
@@ -25,6 +27,7 @@ def build_features(frames: dict[str, pd.DataFrame], symbol: str, asof: pd.Timest
         "week_profile": sessions.week_profile(base, asof),
         "previous_day": sessions.day_extremes(base, base[base.index < asof.normalize()].index[-1])
         if (base.index < asof.normalize()).any() else None,
+        "playbook_detail": pb_detail,
         "key_levels_by_distance": levels.distances(price, lv, ref),
         "timeframes": {k: levels.timeframe_features(v) for k, v in frames.items() if len(v) > 5},
     }

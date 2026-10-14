@@ -16,6 +16,7 @@ Rules:
 - Base every idea on the playbook's rules. Cite them in "playbook_refs" (e.g. "R12"); if the playbook has no
   numbered rules, quote a short section name. If the playbook does not support an idea, do not produce it.
 - Use only numbers present in the snapshot. Never invent prices or recompute indicators.
+- Respect the time flags in the snapshot (time.trading_window, active_windows, day_guidance, calendar_caution) exactly as the playbook rules define them; cite the rule when a flag argues against trading.
 - Consider time of day and day of week as the playbook defines them. If the current session or weekday argues
   against trading, say so and return fewer (or zero) ideas.
 - Give 0-3 ideas, best first. Each needs a bias, entry zone, stop, targets, invalidation, and what must happen
