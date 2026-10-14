@@ -131,3 +131,32 @@ def test_apply_guardrails_sizes_with_state_and_gates_by_time_window():
     res = {"ideas": [idea()]}
     r = apply_guardrails(res, features("no_new_trades"), MNQ, [])["ideas"][0]["risk"]
     assert r["approved"] and not r["executable_now"] and "R53" in r["wait_reason"]
+
+
+def test_journal_is_optional_and_never_crashes_a_run(tmp_path):
+    assert load_journal(None) == [] and load_journal(tmp_path / "missing.json") == []
+    folder = tmp_path / "journal.json"
+    folder.mkdir()                                       # the real-world failure: a FOLDER where the file should be
+    assert load_journal(folder) == []
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json")
+    assert load_journal(bad) == []
+    wrong = tmp_path / "wrong.json"
+    wrong.write_text('{"trades": 5}')
+    assert load_journal(wrong) == []
+    assert risk_state(load_journal(folder), NQ)["effective_risk_pct"] == 1.0
+
+
+def test_log_trade_refuses_folders_and_never_overwrites_a_damaged_journal(tmp_path):
+    folder = tmp_path / "journal.json"
+    folder.mkdir()
+    with pytest.raises(ValueError, match="folder"):
+        log_trade(folder, -100, 500)
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json")
+    with pytest.raises(ValueError, match="not a readable trade journal"):
+        log_trade(bad, -100, 500)
+    assert bad.read_text() == "{not json"                # untouched
+    ok = tmp_path / "ok.json"
+    log_trade(ok, -100, 500)
+    assert len(load_journal(ok)) == 1

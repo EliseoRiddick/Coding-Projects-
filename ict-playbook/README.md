@@ -43,7 +43,7 @@ listed conditions), WAIT = valid but the window is closed, NO TRADE.
 - Up to 6 newest screenshots from `MyDrive/ict/screenshots` (hard cap 8), plus pasted economic data.
 - Python computes levels, sessions, structure and risk; Claude only reasons over that snapshot and your playbook.
 - Add your key as a Colab secret named `ANTHROPIC_API_KEY`. Tick DRY_RUN to preview the request for free.
-- Log closed trades in the last cell so the R95/R96 risk rules work.
+- The trade journal is optional and off by default (`USE_JOURNAL`). Turn it on only if you want the loss-streak sizing rules R95/R96; `JOURNAL` must be a file, not a folder. Closed trades are logged in the last cell.
 
 ## 3b. Trade-idea agent from the command line
 Put one CSV per timeframe in a folder, named by timeframe (`1m.csv`, `15m.csv`, `1h.csv`, `4h.csv`, `1d.csv`).

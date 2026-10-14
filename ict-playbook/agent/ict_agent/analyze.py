@@ -48,10 +48,20 @@ def run_analysis(frames, symbol, playbook, econ="", images=None, asof=None,
     result["_meta"] = {"symbol": symbol, "asof": features["time"]["asof"], "model": model,
                        "images": len(images or []), "cache_read_tokens": resp.usage.cache_read_input_tokens,
                        "input_tokens": resp.usage.input_tokens, "output_tokens": resp.usage.output_tokens}
-    if risk_cfg is not None:
-        risk_mod.apply_guardrails(result, features, risk_cfg, risk_mod.load_journal(journal_path))
-    if out_dir:
-        out_dir = Path(out_dir)
+    out_dir = Path(out_dir) if out_dir else None
+    stamp = f"{symbol}_{datetime.now():%Y%m%d_%H%M%S}"
+    if out_dir:  # keep the paid answer even if a later step fails
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / f"{symbol}_{datetime.now():%Y%m%d_%H%M%S}.json").write_text(json.dumps(result, indent=2))
+        (out_dir / f"{stamp}_raw.json").write_text(json.dumps(result, indent=2))
+    if risk_cfg is not None:
+        try:
+            risk_mod.apply_guardrails(result, features, risk_cfg, risk_mod.load_journal(journal_path))
+        except Exception as e:  # fail closed: never show ideas that were not risk-checked
+            result["risk_state"], result["risk_error"] = None, f"{type(e).__name__}: {e}"
+            for idea in result.get("ideas", []):
+                if isinstance(idea, dict):
+                    idea["risk"] = {"approved": False, "executable_now": False, "warnings": [],
+                                    "issues": [f"risk checks could not run: {result['risk_error']}"]}
+    if out_dir:
+        (out_dir / f"{stamp}.json").write_text(json.dumps(result, indent=2))
     return result, features
