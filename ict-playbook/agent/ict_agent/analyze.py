@@ -1,5 +1,6 @@
 """One entry point used by both the CLI and the Colab notebook."""
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -25,7 +26,9 @@ def run_analysis(frames, symbol, playbook, econ="", images=None, asof=None,
     import anthropic  # late import: tests and --dry-run need no API setup
 
     features, system, content = prepare(frames, symbol, playbook, econ, images, asof, image_names)
-    client = anthropic.Anthropic()
+    # Keys that are not tied to one workspace must say which workspace to use (set ANTHROPIC_WORKSPACE_ID).
+    workspace = os.environ.get("ANTHROPIC_WORKSPACE_ID", "").strip()
+    client = anthropic.Anthropic(default_headers={"anthropic-workspace-id": workspace} if workspace else None)
     with client.messages.stream(
         model=model,
         max_tokens=32000,
