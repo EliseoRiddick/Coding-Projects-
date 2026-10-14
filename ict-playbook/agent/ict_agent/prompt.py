@@ -15,6 +15,12 @@ Rules:
   say what you would need to know.
 - Base every idea on the playbook's rules. Cite them in "playbook_refs" (e.g. "R12"); if the playbook has no
   numbered rules, quote a short section name. If the playbook does not support an idea, do not produce it.
+- The snapshot already contains detected swings (short/intermediate/long), structure events (MSS/BOS), order
+  blocks, breakers (with unicorn flag), liquidity sweeps (with turtle_soup_confirmed) and fair value gaps with
+  their 25/CE/75 levels. Use those; do not identify these patterns yourself from images or raw bars. Where a
+  screenshot appears to disagree, say so, but keep the snapshot's prices.
+- Do not give position sizes, lot counts or dollar risk. Sizing and risk limits are applied afterwards in code.
+  Every idea must have its stop beyond the far side of the entry zone and all targets beyond the near side.
 - Use only numbers present in the snapshot. Never invent prices or recompute indicators.
 - Respect the time flags in the snapshot (time.trading_window, active_windows, day_guidance, calendar_caution) exactly as the playbook rules define them; cite the rule when a flag argues against trading.
 - Consider time of day and day of week as the playbook defines them. If the current session or weekday argues

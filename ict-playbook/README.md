@@ -52,4 +52,20 @@ premium/discount), session, day of week and week profile; Claude only reasons ov
 playbook (cached in the system prompt). Output is JSON saved to `ideas/`. Time logic follows playbook Chapter 5 (windows, R52/R53 trading windows, macros, Silver Bullet, opening range, 4:14 pm RTH gap, NDOG/NWOG, 20/40/60-day ranges, day-of-week guidance). Window times live in
 `agent/ict_agent/sessions.py`; edit them if you revise the playbook. NDOG/NWOG need futures data that includes the overnight break and weekend gap; with gap-free data they are simply omitted.
 
+### Detected structure and hard risk guardrails
+Computed in Python and sent to Claude as JSON (Claude is told not to find these itself): swings in three nested levels (R11),
+MSS/BOS (R12), order blocks (R39, dropped once a body closes beyond the mean threshold, R35), breakers needing a prior
+sweep + break (R41) with a unicorn flag (R42), liquidity sweeps with `turtle_soup_confirmed` (close back inside + opposite MSS, R26),
+and fair value gaps with 25/CE/75 levels (R32-R35). Settings the playbook leaves open are constants at the top of
+`agent/ict_agent/structure.py` (e.g. displacement = body >= 1.5 x ATR14) - edit them if you disagree.
+
+`agent/ict_agent/risk.py` runs after Claude answers and is never delegated to the model:
+- validates each idea (stop beyond the far side of the entry zone, targets beyond the near side),
+- sizes it as (equity x risk%) / (stop distance x value per point), rounded **down**, against the worst fill in the zone (R94),
+- rejects ideas the smallest size cannot fit within the risk budget (use micros or skip), caps risk at 2% (R93),
+- reads your trade journal for R95 (halve after a full-risk loss, restore after recovering half, next trade halved after five wins) and R96 (never size up after a loss),
+- marks `executable_now` false inside the no-trade windows (R52/R53).
+CLI: `--equity 50000 --value-per-point 2 --risk-pct 1 --journal journal.json`. Log closed trades with `risk.log_trade(path, pnl, risk_amount)` (the notebook has a cell for it).
+The tool never places orders; it outputs checked ideas for you to place by hand.
+
 Tests: `python -m pytest agent/tests`. Educational analysis only, not financial advice.

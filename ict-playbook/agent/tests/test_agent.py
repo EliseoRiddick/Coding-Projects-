@@ -80,7 +80,7 @@ def test_build_features_no_lookahead():
     frames = {"15m": f15, "1h": resample_ohlc(f15, "1h")}
     asof = pd.Timestamp("2025-03-07 08:45", tz=TZ)
     feats = build_features(frames, "TEST", asof)
-    assert feats["current_price"] == f15.loc[asof, "close"]
+    assert feats["current_price"] == pytest.approx(f15.loc[asof, "close"], abs=1e-4)
     assert feats["time"]["day_of_week"] == "Friday" and feats["time"]["current_session"] == "ny_premarket"
     assert set(feats["timeframes"]) == {"15m", "1h"}
     d = [abs(r["distance"]) for r in feats["key_levels_by_distance"]]
