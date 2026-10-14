@@ -25,13 +25,25 @@ Upload `bundles/*.md` to a Claude Project as knowledge, then paste `captions/pla
 It runs three passes (extract → consolidate → write ~30 pages with numbered rules R1, R2, …).
 Save the result as `playbook.md`.
 
-## 3a. Colab notebook (easiest way to use the agent)
-Open `colab/ict_analyst.ipynb` in Google Colab (upload it, or File > Open notebook > GitHub). It:
-- reads your playbook straight from the Google Drive doc (edit the doc, re-run, and the new version is used),
-- takes OHLC CSVs of any file name (the timeframe is detected from bar spacing),
-- optionally takes up to 8 chart screenshots and pasted economic data,
-- computes levels/sessions/weekday context in Python, then asks Claude for ideas and shows them formatted.
-Add your key as a Colab secret named `ANTHROPIC_API_KEY`. Tick DRY_RUN to preview the request for free.
+## Just run it (Colab, no uploads)
+Open `colab/ict_analyst.ipynb` in Colab. After a one-time setup (Anthropic key as a Colab secret, settings cell), each run is:
+1. Put your chart screenshots in `MyDrive/ict/screenshots` (name them `1_daily.png`, `2_15m.png`... - the names are shown to Claude as labels; the newest few are used).
+2. Optionally paste economic data into the notebook box.
+3. Press Run. You get a **trade card** (direction, entry zone, stop loss, take profit, size, what to wait for) or "no trade" and why, then the full report.
+
+Candles are downloaded from Yahoo Finance (index futures: NQ, MNQ, ES, MES, ...). Yahoo is free but unofficial and delayed, 5m/15m
+history is about 60 days (limits `ASOF` replays), and continuous futures show roll gaps. For exact data put your broker/charting CSV
+exports in `MyDrive/ict/data` - they are used instead of Yahoo when present. Screenshots are context only: every price on the card
+comes from the candle data, never from reading an image. Decisions: SETUP = inside a playbook trading window (you still wait for the
+listed conditions), WAIT = valid but the window is closed, NO TRADE.
+
+## 3a. Colab notebook details
+- Reads your playbook straight from the Google Drive doc (edit the doc, re-run, and the new version is used).
+- Candles: Yahoo download, or your CSV exports in `MyDrive/ict/data` (any file names - the timeframe is detected from bar spacing).
+- Up to 6 newest screenshots from `MyDrive/ict/screenshots` (hard cap 8), plus pasted economic data.
+- Python computes levels, sessions, structure and risk; Claude only reasons over that snapshot and your playbook.
+- Add your key as a Colab secret named `ANTHROPIC_API_KEY`. Tick DRY_RUN to preview the request for free.
+- Log closed trades in the last cell so the R95/R96 risk rules work.
 
 ## 3b. Trade-idea agent from the command line
 Put one CSV per timeframe in a folder, named by timeframe (`1m.csv`, `15m.csv`, `1h.csv`, `4h.csv`, `1d.csv`).
