@@ -10,20 +10,21 @@ from .features import build_features
 from .prompt import parse_json_response, system_blocks, user_content
 
 
-def prepare(frames, symbol, playbook, econ="", images=None, asof=None):
+def prepare(frames, symbol, playbook, econ="", images=None, asof=None, image_names=None):
     """Compute features and assemble the request pieces (no API call)."""
     features = build_features(frames, symbol, asof)
-    return features, system_blocks(playbook), user_content(features, econ, images)
+    return features, system_blocks(playbook), user_content(features, econ, images, image_names)
 
 
 def run_analysis(frames, symbol, playbook, econ="", images=None, asof=None,
                  model="claude-opus-5-5", effort="high", out_dir: Path | None = None,
-                 risk_cfg: "risk_mod.RiskConfig | None" = None, journal_path: Path | str | None = None):
+                 risk_cfg: "risk_mod.RiskConfig | None" = None, journal_path: Path | str | None = None,
+                 image_names: list[str] | None = None):
     """Call Claude and return (result_dict, features). If risk_cfg is given, every idea is checked and sized in
     Python (risk.apply_guardrails) before anything is returned or saved. Saves JSON under out_dir if given."""
     import anthropic  # late import: tests and --dry-run need no API setup
 
-    features, system, content = prepare(frames, symbol, playbook, econ, images, asof)
+    features, system, content = prepare(frames, symbol, playbook, econ, images, asof, image_names)
     client = anthropic.Anthropic()
     with client.messages.stream(
         model=model,

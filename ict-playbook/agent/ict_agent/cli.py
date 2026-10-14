@@ -45,14 +45,14 @@ def main(argv: list[str] | None = None) -> int:
         risk_cfg = RiskConfig(a.equity, a.value_per_point, a.risk_pct, a.size_step)
 
     if a.dry_run:
-        features, system, content = prepare(frames, a.symbol, playbook, econ, images, asof)
+        features, system, content = prepare(frames, a.symbol, playbook, econ, images, asof, [p.name for p in a.images])
         print(system[0]["text"][:3000], "\n...\n")
         print(content[-1]["text"])
         return 0
 
     try:
         result, _ = run_analysis(frames, a.symbol, playbook, econ, images, asof, a.model, a.effort, a.out_dir,
-                                 risk_cfg, a.journal)
+                                 risk_cfg, a.journal, [p.name for p in a.images])
     except RuntimeError as e:
         print(e, file=sys.stderr)
         return 1
