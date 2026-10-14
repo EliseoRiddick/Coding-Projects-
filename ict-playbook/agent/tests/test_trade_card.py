@@ -6,7 +6,7 @@ from PIL import Image
 
 from ict_agent.images import load_folder
 from ict_agent.prompt import user_message
-from ict_agent.trade_card import card_markdown, make_card, report_markdown
+from ict_agent.trade_card import card_markdown, headline, make_card, report_markdown
 
 FEATS = {"symbol": "NQ", "current_price": 18005.0,
          "time": {"asof": "2025-03-05T10:15:00-05:00", "day_of_week": "Wednesday", "current_session": "ny_morning",
@@ -94,3 +94,22 @@ def test_price_formatting():
     from ict_agent.trade_card import fmt_price
     assert fmt_price(17948.963519431993) == "17948.96" and fmt_price(1.0834512) == "1.08345" and fmt_price("n/a") == "n/a"
     assert "17948.96" in card_markdown(make_card(res(idea("x", entry_zone=[17948.963519431993, 17956.9])), FEATS))
+
+
+def test_headline_is_plain_english_for_each_decision():
+    live = make_card(res(idea("a")), FEATS)
+    h = headline(live)
+    assert h.startswith("✅") and "BUY NQ" in h and "between 18000.00 and 18010.00" in h and "Stop loss at 17990.00" in h
+    assert "about 20.00 points of risk" in h and "Take profit at 18050.00, then 18100.00" in h
+    assert "SELL" in headline(make_card(res(idea("s", bias="short")), FEATS))
+    wait = headline(make_card(res(idea("w", now=False)), FEATS))
+    assert wait.startswith("⏳") and "not now" in wait and "R53" in wait
+    none = headline(make_card(res(reasons=["choppy overlapping candles"]), FEATS))
+    assert none.startswith("🚫") and "choppy overlapping candles" in none
+    assert "BUY NQ" in card_markdown(live).split("|")[0] and "Stop loss = where you exit" in card_markdown(live)
+
+
+def test_glossary_is_separated_from_the_table():
+    md = card_markdown(make_card(res(idea("a")), FEATS)).splitlines()
+    i = next(n for n, l in enumerate(md) if l.startswith("*Entry zone ="))
+    assert md[i - 1] == "" and md[i - 2].startswith("| **Confidence**")
