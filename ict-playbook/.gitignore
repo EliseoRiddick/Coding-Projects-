@@ -1,0 +1,6 @@
+transcripts/
+bundles/
+ideas/
+__pycache__/
+.pytest_cache/
+*.pyc
