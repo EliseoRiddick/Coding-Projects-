@@ -46,13 +46,41 @@ def resample_ohlc(df: pd.DataFrame, rule: str) -> pd.DataFrame:
     return out.dropna()
 
 
+STANDARD_TFS = [1, 3, 5, 15, 30, 60, 120, 240, 1440, 10080]
+
+
+def infer_tf_name(df: pd.DataFrame) -> str:
+    """Name a timeframe from the typical gap between bars (ignores weekend/session gaps)."""
+    if len(df) < 3:
+        raise ValueError("Need at least 3 bars to infer the timeframe")
+    mins = df.index.to_series().diff().dropna().dt.total_seconds().median() / 60
+    best = min(STANDARD_TFS, key=lambda m: abs(m - mins))
+    if best >= 10080:
+        return f"{best // 10080}w"
+    if best >= 1440:
+        return f"{best // 1440}d"
+    if best >= 60:
+        return f"{best // 60}h"
+    return f"{best}m"
+
+
 def load_timeframes(data_dir: Path, tz: str, derive: list[str] | None = None) -> dict[str, pd.DataFrame]:
-    """Load every `<timeframe>.csv` in data_dir; optionally derive missing timeframes from the finest."""
-    frames = {p.stem.lower(): load_csv(p, tz) for p in sorted(Path(data_dir).glob("*.csv"))}
+    """Load every CSV in data_dir. A file named like a timeframe (`15m.csv`) keeps that name;
+    any other name (e.g. an exported `NQ1!_15.csv`) is labelled from its bar spacing.
+    Optionally derive missing higher timeframes from the finest."""
+    frames: dict[str, pd.DataFrame] = {}
+    for p in sorted(Path(data_dir).glob("*.csv")):
+        df = load_csv(p, tz)
+        try:
+            tf_minutes(p.stem)
+            name = p.stem.lower()
+        except ValueError:
+            name = infer_tf_name(df)
+        if name in frames:
+            raise ValueError(f"Two files look like {name} data ({p.name} and an earlier one)")
+        frames[name] = df
     if not frames:
         raise FileNotFoundError(f"No CSV files in {data_dir}")
-    for name in frames:
-        tf_minutes(name)
     base_name = min(frames, key=tf_minutes)
     for name in derive or []:
         if name not in frames and tf_minutes(name) > tf_minutes(base_name):

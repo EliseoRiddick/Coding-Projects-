@@ -25,7 +25,15 @@ Upload `bundles/*.md` to a Claude Project as knowledge, then paste `captions/pla
 It runs three passes (extract → consolidate → write ~30 pages with numbered rules R1, R2, …).
 Save the result as `playbook.md`.
 
-## 3. Trade-idea agent
+## 3a. Colab notebook (easiest way to use the agent)
+Open `colab/ict_analyst.ipynb` in Google Colab (upload it, or File > Open notebook > GitHub). It:
+- reads your playbook straight from the Google Drive doc (edit the doc, re-run, and the new version is used),
+- takes OHLC CSVs of any file name (the timeframe is detected from bar spacing),
+- optionally takes up to 8 chart screenshots and pasted economic data,
+- computes levels/sessions/weekday context in Python, then asks Claude for ideas and shows them formatted.
+Add your key as a Colab secret named `ANTHROPIC_API_KEY`. Tick DRY_RUN to preview the request for free.
+
+## 3b. Trade-idea agent from the command line
 Put one CSV per timeframe in a folder, named by timeframe (`1m.csv`, `15m.csv`, `1h.csv`, `4h.csv`, `1d.csv`).
 Columns: a time column (`timestamp`/`datetime`/`time`/`date`, naive local, tz-aware, or unix epoch) plus
 `open,high,low,close`. Missing higher timeframes can be derived with `--derive 1h,4h,1d`.
@@ -34,7 +42,8 @@ Columns: a time column (`timestamp`/`datetime`/`time`/`date`, naive local, tz-aw
 export ANTHROPIC_API_KEY=...
 cd agent
 python -m ict_agent.cli --data-dir ../data --playbook ../playbook.md --symbol NQ --derive 1h,4h,1d --dry-run
-python -m ict_agent.cli --data-dir ../data --playbook ../playbook.md --symbol NQ --derive 1h,4h,1d
+python -m ict_agent.cli --data-dir ../data --playbook ../playbook.md --symbol NQ --derive 1h,4h,1d \
+    --images chart1.png chart2.png --econ calendar.txt
 # replay a past moment without lookahead:
 python -m ict_agent.cli ... --asof "2025-03-12 08:45"
 ```

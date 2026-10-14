@@ -98,3 +98,44 @@ def test_load_csv_offsets_across_dst(tmp_path):
     df.reset_index().to_csv(p, index=False)  # strings carry -05:00 then -04:00
     got = load_csv(p, TZ)
     assert len(got) == len(df) and got.index[0] == df.index[0] and got.index[-1] == df.index[-1]
+
+
+def test_infer_timeframe_names():
+    from ict_agent.data import infer_tf_name
+    assert infer_tf_name(synth(freq="15min")) == "15m"
+    assert infer_tf_name(resample_ohlc(synth(), "1h")) == "1h"
+    assert infer_tf_name(resample_ohlc(synth(), "4h")) == "4h"
+    assert infer_tf_name(resample_ohlc(synth(), "1D")) == "1d"
+
+
+def test_load_timeframes_labels_oddly_named_files(tmp_path):
+    from ict_agent.data import load_timeframes
+    f15 = synth()
+    f15.to_csv(tmp_path / "NQ1!_export.csv")
+    resample_ohlc(f15, "1h").to_csv(tmp_path / "hourly chart.csv")
+    frames = load_timeframes(tmp_path, TZ, derive=["4h"])
+    assert list(frames) == ["15m", "1h", "4h"]
+
+
+def test_image_blocks_downscale_and_limit():
+    import io
+    from PIL import Image
+    from ict_agent.images import image_blocks
+    buf = io.BytesIO()
+    Image.new("RGBA", (3000, 1500), (10, 20, 30, 255)).save(buf, format="PNG")
+    blk = image_blocks([buf.getvalue()])[0]
+    assert blk["type"] == "image" and blk["source"]["media_type"] == "image/png"
+    import base64
+    out = Image.open(io.BytesIO(base64.b64decode(blk["source"]["data"])))
+    assert max(out.size) == 1568
+    with pytest.raises(ValueError):
+        image_blocks([buf.getvalue()] * 9)
+
+
+def test_user_content_order_and_econ():
+    from ict_agent.prompt import user_content
+    img = {"type": "image", "source": {}}
+    c = user_content({"x": 1}, econ="CPI 08:30 high impact", images=[img, img])
+    assert c[0]["type"] == c[1]["type"] == "image" and c[2]["type"] == "text"
+    assert "<economic_data>" in c[2]["text"] and "2 chart screenshot" in c[2]["text"]
+    assert "economic_data" not in user_content({"x": 1})[0]["text"]
