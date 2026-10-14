@@ -37,7 +37,7 @@ def make_card(result: dict, features: dict) -> dict:
     return {**base, "decision": "SETUP" if r.get("executable_now") else "WAIT",
             "direction": "LONG (buy)" if pick["bias"] == "long" else "SHORT (sell)",
             "entry_zone": [lo, hi], "stop": pick["stop"], "take_profit": list(pick["targets"]),
-            "size": r["size"], "risk_amount": r["risk_amount"], "risk_pct": r["risk_pct_of_equity"],
+            "risk_points": r["risk_points"], "size": r["size"], "risk_amount": r["risk_amount"], "risk_pct": r["risk_pct_of_equity"],
             "reward_risk": r["reward_risk_by_target"], "confidence": pick.get("confidence"),
             "playbook_refs": pick.get("playbook_refs", []), "wait_for": pick.get("conditions_to_wait_for", []),
             "invalidation": pick.get("invalidation", ""), "why": pick.get("rationale", ""),
@@ -45,10 +45,26 @@ def make_card(result: dict, features: dict) -> dict:
             "other_approved_ideas": len(approved) - 1}
 
 
-def card_markdown(card: dict) -> str:
-    head = f"## {card['symbol']} - {card['decision']}   *(price {fmt_price(card['price'])}, {card['asof']})*"
+def headline(card: dict) -> str:
+    """One plain-English sentence a beginner can act on."""
     if card["decision"] == "NO TRADE":
-        return head + "\n\n**No trade.** " + "; ".join(card["reasons"])
+        why = card["reasons"][0] if card["reasons"] else "nothing fits the playbook"
+        return f"🚫 **No trade right now.** {why}"
+    word = "BUY" if card["direction"].startswith("LONG") else "SELL"
+    lo, hi = card["entry_zone"]
+    tps = card["take_profit"]
+    target = f"{fmt_price(tps[0])}" + (f", then {fmt_price(tps[1])}" if len(tps) > 1 else "")
+    plan = (f"**{word} {card['symbol']}.** Enter between {fmt_price(lo)} and {fmt_price(hi)}. "
+            f"Stop loss at {fmt_price(card['stop'])} (about {fmt_price(card['risk_points'])} points of risk). Take profit at {target}.")
+    if card["decision"] == "WAIT":
+        return f"⏳ **Valid idea, but not now:** {plan} {card['wait_reason'] or 'The trading window is closed.'}"
+    return f"✅ **Trade idea:** {plan} Only enter once the conditions below have happened."
+
+
+def card_markdown(card: dict) -> str:
+    head = f"## {card['symbol']} - {card['decision']}   *(price {fmt_price(card['price'])}, {card['asof']})*\n\n> {headline(card)}"
+    if card["decision"] == "NO TRADE":
+        return head + "\n\n" + ("**Other reasons:** " + "; ".join(card["reasons"][1:]) if len(card["reasons"]) > 1 else "")
     lines = [head, "",
              "| | |", "|---|---|",
              f"| **Direction** | **{card['direction']}** |",
@@ -57,6 +73,7 @@ def card_markdown(card: dict) -> str:
              f"| **Take profit** | {' / '.join(map(fmt_price, card['take_profit']))}  (reward:risk {' / '.join(map(str, card['reward_risk']))}) |",
              f"| **Size** | {card['size']:g} units - risks {card['risk_amount']:,.2f} ({card['risk_pct']}% of equity) |",
              f"| **Confidence** | {card['confidence']}  (playbook: {', '.join(map(str, card['playbook_refs']))}) |", ""]
+    lines += ["*Entry zone = the price range to buy/sell in. Stop loss = where you exit if you are wrong. Take profit = where you take gains.*", ""]
     if card["decision"] == "WAIT":
         lines.append(f"**Not now:** {card['wait_reason'] or 'outside the playbook trading windows'}. The setup is valid for the next allowed window.")
     else:

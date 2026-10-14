@@ -210,3 +210,29 @@ def test_features_include_playbook_context():
     assert t["day_of_week"] == "Wednesday" and "R62" in t["day_guidance"]
     assert any(r["level"] == "lookback_20d_high" for r in feats["key_levels_by_distance"])
     assert "playbook_detail" in feats
+
+
+def test_workspace_header_is_sent_only_when_configured(monkeypatch):
+    import types
+    from unittest import mock
+    from ict_agent.analyze import run_analysis
+
+    class S:
+        def __enter__(s): return s
+        def __exit__(s, *a): pass
+        def get_final_message(s):
+            return types.SimpleNamespace(stop_reason="end_turn", content=[types.SimpleNamespace(type="text", text="{\"ideas\": []}")],
+                                         usage=types.SimpleNamespace(cache_read_input_tokens=0, input_tokens=1, output_tokens=1))
+
+    f15 = synth()
+    frames = {"15m": f15}
+    asof = pd.Timestamp("2025-03-07 10:30", tz=TZ)
+    for env, expected in (("wrkspc_123", {"anthropic-workspace-id": "wrkspc_123"}), ("  ", None), (None, None)):
+        monkeypatch.delenv("ANTHROPIC_WORKSPACE_ID", raising=False)
+        if env is not None:
+            monkeypatch.setenv("ANTHROPIC_WORKSPACE_ID", env)
+        client = mock.MagicMock()
+        client.messages.stream.return_value = S()
+        with mock.patch("anthropic.Anthropic", return_value=client) as ctor:
+            run_analysis(frames, "T", "R1", asof=asof)
+        assert ctor.call_args.kwargs.get("default_headers") == expected
