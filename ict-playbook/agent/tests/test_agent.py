@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import pandas as pd
 import pytest
@@ -236,3 +237,46 @@ def test_workspace_header_is_sent_only_when_configured(monkeypatch):
         with mock.patch("anthropic.Anthropic", return_value=client) as ctor:
             run_analysis(frames, "T", "R1", asof=asof)
         assert ctor.call_args.kwargs.get("default_headers") == expected
+
+
+def _stub_claude(text='{"market_read": "m", "ideas": [{"bias": "long", "entry_zone": [100, 101], "stop": 99, "targets": [105]}]}'):
+    import types
+    from unittest import mock
+
+    class S:
+        def __enter__(s): return s
+        def __exit__(s, *a): pass
+        def get_final_message(s):
+            return types.SimpleNamespace(stop_reason="end_turn", content=[types.SimpleNamespace(type="text", text=text)],
+                                         usage=types.SimpleNamespace(cache_read_input_tokens=0, input_tokens=1, output_tokens=1))
+
+    client = mock.MagicMock()
+    client.messages.stream.return_value = S()
+    return mock.patch("anthropic.Anthropic", return_value=client)
+
+
+def test_journal_folder_does_not_break_a_run(tmp_path):
+    from ict_agent.analyze import run_analysis
+    from ict_agent.risk import RiskConfig
+    (tmp_path / "journal.json").mkdir()
+    with _stub_claude():
+        result, _ = run_analysis({"15m": synth()}, "T", "R1", asof=pd.Timestamp("2025-03-07 10:30", tz=TZ),
+                                 out_dir=tmp_path / "out", risk_cfg=RiskConfig(50000, 2), journal_path=tmp_path / "journal.json")
+    assert result["ideas"][0]["risk"]["approved"] is True or result["ideas"][0]["risk"]["issues"]   # sized or rejected, never a crash
+    assert result["risk_state"]["effective_risk_pct"] == 1.0
+
+
+def test_guardrail_failure_fails_closed_and_keeps_the_paid_answer(tmp_path):
+    from unittest import mock
+    from ict_agent.analyze import run_analysis
+    from ict_agent.risk import RiskConfig
+    with _stub_claude(), mock.patch("ict_agent.risk.apply_guardrails", side_effect=RuntimeError("boom")):
+        result, _ = run_analysis({"15m": synth()}, "T", "R1", asof=pd.Timestamp("2025-03-07 10:30", tz=TZ),
+                                 out_dir=tmp_path / "out", risk_cfg=RiskConfig(50000, 2))
+    r = result["ideas"][0]["risk"]
+    assert r["approved"] is False and r["executable_now"] is False and "boom" in r["issues"][0]
+    assert result["risk_state"] is None and "boom" in result["risk_error"]
+    files = sorted(p.name for p in (tmp_path / "out").iterdir())
+    assert len(files) == 2 and files[0].endswith("_raw.json") is False or files[1].endswith("_raw.json")
+    raw = next(p for p in (tmp_path / "out").iterdir() if p.name.endswith("_raw.json"))
+    assert "risk" not in json.loads(raw.read_text())["ideas"][0]          # raw model answer, saved before the checks

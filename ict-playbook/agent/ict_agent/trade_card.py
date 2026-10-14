@@ -24,7 +24,7 @@ def make_card(result: dict, features: dict) -> dict:
     approved = [i for i in ideas if i["risk"].get("approved")]
     live = [i for i in approved if i["risk"].get("executable_now")]
     base = {"symbol": features["symbol"], "asof": features["time"]["asof"], "price": features["current_price"],
-            "window": features["time"]["trading_window"]["status"], "risk_state": result.get("risk_state", {}),
+            "window": features["time"]["trading_window"]["status"], "risk_state": result.get("risk_state") or {},
             "ideas_considered": len(ideas)}
     pick = max(live, key=_rank) if live else max(approved, key=_rank) if approved else None
     if pick is None:
@@ -109,6 +109,8 @@ def report_markdown(result: dict, features: dict, saved_to: str = "") -> str:
         out += [f"- *warning:* {w}" for w in r.get("warnings", [])]
     if not result.get("ideas"):
         out.append("\n**No trade.** " + "; ".join(map(str, result.get("no_trade_reasons", []))))
+    if result.get("risk_error"):
+        out.append(f"\n**RISK CHECKS DID NOT RUN, so no idea is approved:** {result['risk_error']}")
     rs = result.get("risk_state")
     if rs:
         out.append(f"\n**Risk state:** {rs['effective_risk_pct']}% per trade (base {rs['base_risk_pct']}%). " + " ".join(rs["reasons"]))

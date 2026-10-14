@@ -113,3 +113,11 @@ def test_glossary_is_separated_from_the_table():
     md = card_markdown(make_card(res(idea("a")), FEATS)).splitlines()
     i = next(n for n, l in enumerate(md) if l.startswith("*Entry zone ="))
     assert md[i - 1] == "" and md[i - 2].startswith("| **Confidence**")
+
+
+def test_card_and_report_survive_a_missing_risk_state():
+    r = {"ideas": [idea("a", approved=False)], "risk_state": None, "risk_error": "ValueError: boom",
+         "_meta": {"input_tokens": 1, "cache_read_tokens": 0, "output_tokens": 1}}
+    c = make_card(r, FEATS)
+    assert c["decision"] == "NO TRADE" and c["risk_state"] == {}
+    assert "RISK CHECKS DID NOT RUN" in report_markdown(r, FEATS) and "boom" in report_markdown(r, FEATS)

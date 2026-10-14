@@ -37,18 +37,37 @@ class RiskConfig:
 
 
 # ------------------------------------------------------------------ journal (R95/R96)
+def _read_journal(path: Path) -> list[dict]:
+    """Strict read: raises ValueError for a folder or a file that is not a valid journal."""
+    if path.is_dir():
+        raise ValueError(f"{path} is a folder, not a file - choose a file name such as trades.json")
+    try:
+        data = json.loads(path.read_text())
+        trades = data["trades"]
+        if not isinstance(trades, list):
+            raise TypeError("'trades' is not a list")
+        return trades
+    except (OSError, ValueError, KeyError, TypeError) as e:
+        raise ValueError(f"{path} is not a readable trade journal ({type(e).__name__}: {e})") from e
+
+
 def load_journal(path: Path | str | None) -> list[dict]:
+    """The journal is optional: a missing, unreadable or malformed file simply means 'no history' (never raises)."""
     if not path or not Path(path).exists():
         return []
-    return json.loads(Path(path).read_text()).get("trades", [])
+    try:
+        return _read_journal(Path(path))
+    except ValueError:
+        return []
 
 
 def log_trade(path: Path | str, pnl: float, risk_amount: float, symbol: str = "", risk_pct: float | None = None,
               date: str | None = None) -> None:
-    """Append one CLOSED trade: pnl (negative for a loss) and the amount you planned to risk on it."""
+    """Append one CLOSED trade: pnl (negative for a loss) and the amount you planned to risk on it.
+    Refuses to touch a folder or a damaged file rather than overwrite it."""
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    trades = load_journal(p)
+    trades = _read_journal(p) if p.exists() else []
     trades.append({"date": date or datetime.now().isoformat(timespec="minutes"), "symbol": symbol,
                    "pnl": float(pnl), "risk_amount": float(risk_amount), "risk_pct": risk_pct})
     p.write_text(json.dumps({"trades": trades}, indent=1))
