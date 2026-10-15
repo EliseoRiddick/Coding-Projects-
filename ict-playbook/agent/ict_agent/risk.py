@@ -187,8 +187,14 @@ def apply_guardrails(result: dict, features: dict, cfg: RiskConfig, trades: list
     price, atr = features.get("current_price"), features.get("daily_atr14")
     for idea in result.get("ideas", []):
         r = check_idea(idea, cfg, state["effective_risk_pct"], price, atr)
-        r["executable_now"] = bool(r["approved"] and status == "tradable_window")
-        if r["approved"] and status != "tradable_window":
+        eco = features.get("economic") or {}
+        hold = eco.get("news_hold")
+        r["executable_now"] = bool(r["approved"] and status == "tradable_window" and not hold)
+        if r["approved"] and eco and not eco.get("available", True):
+            r.setdefault("warnings", []).append("No economic calendar was loaded, so the news rules (R64-R66) were NOT checked.")
+        if r["approved"] and hold:
+            r["wait_reason"] = f"{hold['rule']}: {hold['reason']}"
+        elif r["approved"] and status != "tradable_window":
             r["wait_reason"] = {"no_new_trades": "R53: no new trades 11:30-13:30",
                                 "observe_only": "R52: 7:00-9:00 is observation only",
                                 "closed_or_conditional_only": "market closed / conditional scenarios only"}.get(

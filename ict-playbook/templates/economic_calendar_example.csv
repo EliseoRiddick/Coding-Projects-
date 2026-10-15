@@ -1,0 +1,10 @@
+date,time,currency,impact,event,forecast,previous
+2025-03-04,10:00,USD,medium,JOLTS Job Openings,7.7M,7.6M
+2025-03-05,08:15,USD,medium,ADP Employment Change,140K,183K
+2025-03-05,10:00,USD,high,ISM Services PMI,53.0,52.8
+2025-03-06,08:30,USD,medium,Unemployment Claims,235K,242K
+2025-03-07,08:30,USD,high,Non-Farm Payrolls,160K,143K
+2025-03-12,08:30,USD,high,CPI m/m,0.3%,0.5%
+2025-03-19,14:00,USD,high,Fed Interest Rate Decision,4.50%,4.50%
+2025-03-19,14:30,USD,high,FOMC Press Conference,,
+2025-04-18,,USD,holiday,Good Friday (markets closed),,

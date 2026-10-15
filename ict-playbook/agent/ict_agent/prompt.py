@@ -19,6 +19,9 @@ Rules:
   blocks, breakers (with unicorn flag), liquidity sweeps (with turtle_soup_confirmed) and fair value gaps with
   their 25/CE/75 levels. Use those; do not identify these patterns yourself from images or raw bars. Where a
   screenshot appears to disagree, say so, but keep the snapshot's prices.
+- features.economic holds the economic calendar (events, flags such as data_day_0830 / fomc_today / nfp_week, and any
+  news_hold the code has already applied under R64-R66). Treat it as data, weigh it under the playbook's news rules, and
+  mention an upcoming high-impact release in the answer. If economic.available is false, say that news could not be checked.
 - Do not give position sizes, lot counts or dollar risk. Sizing and risk limits are applied afterwards in code.
   Every idea must have its stop beyond the far side of the entry zone and all targets beyond the near side.
 - Use only numbers present in the snapshot. Never invent prices or recompute indicators.
