@@ -8,6 +8,7 @@ import pandas as pd
 
 from .analyze import prepare, run_analysis
 from .data import load_timeframes
+from .economic import load_calendar
 from .images import image_blocks
 from .risk import RiskConfig
 
@@ -24,7 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--effort", default="high", choices=["low", "medium", "high", "xhigh", "max"])
     ap.add_argument("--out-dir", type=Path, default=Path("ideas"))
     ap.add_argument("--images", type=Path, nargs="*", default=[], help="chart screenshots (png/jpg)")
-    ap.add_argument("--econ", type=Path, help="text file with economic data / calendar notes")
+    ap.add_argument("--econ", type=Path, help="text file with free-form economic notes (optional)")
+    ap.add_argument("--economic-dir", type=Path, help="folder with economic calendar CSV exports (news rules R64-R66)")
     ap.add_argument("--equity", type=float, help="account equity; with --value-per-point turns on sizing and risk checks")
     ap.add_argument("--value-per-point", type=float, help="account-currency value of a 1.0 price move per unit (NQ 20, MNQ 2)")
     ap.add_argument("--risk-pct", type=float, default=1.0, help="risk per trade in %% of equity (R93: 1 default, 0.5 beginner, 2 ceiling)")
@@ -37,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     asof = pd.Timestamp(a.asof, tz=a.tz) if a.asof else None
     playbook = a.playbook.read_text(encoding="utf-8")
     econ = a.econ.read_text(encoding="utf-8") if a.econ else ""
+    calendar = load_calendar(a.economic_dir, a.tz) if a.economic_dir else None
     images = image_blocks(a.images)
     risk_cfg = None
     if a.equity or a.value_per_point:
@@ -45,14 +48,14 @@ def main(argv: list[str] | None = None) -> int:
         risk_cfg = RiskConfig(a.equity, a.value_per_point, a.risk_pct, a.size_step)
 
     if a.dry_run:
-        features, system, content = prepare(frames, a.symbol, playbook, econ, images, asof, [p.name for p in a.images])
+        features, system, content = prepare(frames, a.symbol, playbook, econ, images, asof, [p.name for p in a.images], calendar)
         print(system[0]["text"][:3000], "\n...\n")
         print(content[-1]["text"])
         return 0
 
     try:
         result, _ = run_analysis(frames, a.symbol, playbook, econ, images, asof, a.model, a.effort, a.out_dir,
-                                 risk_cfg, a.journal, [p.name for p in a.images])
+                                 risk_cfg, a.journal, [p.name for p in a.images], calendar)
     except RuntimeError as e:
         print(e, file=sys.stderr)
         return 1

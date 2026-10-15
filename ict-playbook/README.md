@@ -28,7 +28,7 @@ Save the result as `playbook.md`.
 ## Just run it (Colab, no uploads)
 Open `colab/ict_analyst.ipynb` in Colab. After a one-time setup (Anthropic key as a Colab secret, settings cell), each run is:
 1. Put your chart screenshots in `MyDrive/ict/screenshots` (name them `1_daily.png`, `2_15m.png`... - the names are shown to Claude as labels; the newest few are used).
-2. Optionally paste economic data into the notebook box.
+2. Optionally put this week's economic calendar CSV in `MyDrive/ict/economic`.
 3. Press Run. You get a **trade card** (direction, entry zone, stop loss, take profit, size, what to wait for) or "no trade" and why, then the full report.
 
 Candles are downloaded from Yahoo Finance (index futures: NQ, MNQ, ES, MES, ...). Yahoo is free but unofficial and delayed, 5m/15m
@@ -37,10 +37,23 @@ exports in `MyDrive/ict/data` - they are used instead of Yahoo when present. Scr
 comes from the candle data, never from reading an image. Decisions: SETUP = inside a playbook trading window (you still wait for the
 listed conditions), WAIT = valid but the window is closed, NO TRADE.
 
+## Economic calendar (folder, no pasting)
+Drop the week's economic calendar as a **CSV** in `MyDrive/ict/economic` (several files are merged; the notebook creates the folder).
+Times are read as **New York time** unless a value carries a UTC offset. Recognised column names (any order, case does not matter):
+`date` + `time` (or one `datetime`), `event`/`title`, `impact`/`importance` (High/Medium/Low, 1-3, stars, or Holiday), and optionally
+`currency`/`country`, `forecast`/`consensus`, `previous`, `actual`. Missing impact is guessed from the event name. See
+`templates/economic_calendar_example.csv`.
+
+Python applies the playbook's news rules itself, then Claude also sees the events: **R64** no trading in the first 3 minutes after any
+medium/high release; **R65** FOMC decision plus 30 minutes; **R66** NFP week from Wednesday 11:00 until the release is out; **R67**
+holiday weeks are flagged. During a hold the card says "valid idea, but not now" with the reason. With no calendar, the run still works
+but warns that news could not be checked. Refresh the file each week - a stale calendar triggers a warning. Rules are evaluated at the
+time of the last completed candle.
+
 ## 3a. Colab notebook details
 - Reads your playbook straight from the Google Drive doc (edit the doc, re-run, and the new version is used).
 - Candles: Yahoo download, or your CSV exports in `MyDrive/ict/data` (any file names - the timeframe is detected from bar spacing).
-- Up to 6 newest screenshots from `MyDrive/ict/screenshots` (hard cap 8), plus pasted economic data.
+- Up to 6 newest screenshots from `MyDrive/ict/screenshots` (hard cap 8), plus the economic calendar CSV from `MyDrive/ict/economic`.
 - Python computes levels, sessions, structure and risk; Claude only reasons over that snapshot and your playbook.
 - Add your key as a Colab secret named `ANTHROPIC_API_KEY`. Tick DRY_RUN to preview the request for free.
 - The trade journal is optional and off by default (`USE_JOURNAL`). Turn it on only if you want the loss-streak sizing rules R95/R96; `JOURNAL` must be a file, not a folder. Closed trades are logged in the last cell.
